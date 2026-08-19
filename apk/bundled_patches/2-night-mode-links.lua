@@ -68,7 +68,13 @@ local ok, err = pcall(function()
 
         -- 1. Brightness / extra-dim: capture current, before toggling.
         if PowerD then
-            leaving.intensity = PowerD:frontlightIntensity()
+            -- Read the raw field directly, not frontlightIntensity() --
+            -- that getter clamps to 0 whenever is_fl_on is false, which
+            -- (per the restore-step comment below) can itself be stale.
+            -- fl_intensity is never zeroed by turnOffFrontlight()/
+            -- turnOffFrontlightHW(), so it reliably holds the real last
+            -- positive level regardless of on/off bookkeeping.
+            leaving.intensity = PowerD.fl_intensity
             if _G.ExtraDim then
                 leaving.extra_dim_level = _G.ExtraDim.getLevel()
             end
@@ -87,21 +93,31 @@ local ok, err = pcall(function()
         orig_onToggleNightMode(self)
 
         -- Restore whatever was saved for the mode we're entering.
+        --
+        -- Deliberately NOT using PowerD:setIntensity()/turnOffFrontlight()
+        -- here, and not gating on isFrontlightOn()/isFrontlightOff() either.
+        -- Those methods (and the is_fl_on flag they read) work fine in
+        -- isolation, but mixing setIntensity() -- which never touches
+        -- is_fl_on -- with turnOffFrontlight() -- which does -- across
+        -- repeated mode switches leaves is_fl_on out of sync with the real
+        -- hardware state. A guard like "if isFrontlightOn() then
+        -- turnOffFrontlight()" can then silently no-op because the flag
+        -- claims the light's already off when it physically isn't, which is
+        -- exactly what caused the brightness to only "catch up" on your
+        -- next manual swipe (that path forces the real call unconditionally
+        -- via a fresh gesture). So: call the underlying HW functions
+        -- directly and set the bookkeeping fields ourselves, every time,
+        -- regardless of what they currently claim.
         if PowerD then
             if entering.extra_dim_level and entering.extra_dim_level < 0 and _G.ExtraDim then
                 _G.ExtraDim.setLevel(entering.extra_dim_level)
-                -- ExtraDim.setLevel only updates the tracked level and the
-                -- software darken overlay -- it never touches the real
-                -- backlight. Without this, the physical brightness stays
-                -- wherever the mode we're leaving had it until the next
-                -- manual swipe happens to trigger turnOffFrontlight() for
-                -- real via 2-extra-dim.lua's gesture handler, which looks
-                -- like the dim level "snapping" to the right value later.
-                if PowerD:isFrontlightOn() then
-                    PowerD:turnOffFrontlight()
-                end
+                PowerD:turnOffFrontlightHW()
+                PowerD.is_fl_on = false
             elseif entering.intensity and entering.intensity > 0 then
-                PowerD:setIntensity(entering.intensity)
+                if _G.ExtraDim then _G.ExtraDim.setLevel(0) end
+                PowerD.fl_intensity = PowerD:normalizeIntensity(entering.intensity)
+                PowerD:setIntensityHW(PowerD.fl_intensity)
+                PowerD.is_fl_on = true
                 if _G.ExtraDim then _G.ExtraDim.setLevel(0) end
             end
         end
