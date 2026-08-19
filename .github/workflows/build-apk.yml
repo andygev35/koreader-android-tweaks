@@ -27,7 +27,7 @@ jobs:
 
       - name: Install build tools
         run: |
-          sudo apt-get update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10 update
           sudo apt-get install -y --no-install-recommends unzip zip p7zip-full python3
           cd /tmp
           sudo apt-get download apksigner zipalign libapksig-java \
@@ -55,7 +55,15 @@ jobs:
       - name: Restore or generate signing keystore
         run: |
           if [ -n "${{ secrets.SIGNING_KEYSTORE_B64 }}" ]; then
-            echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d > apk/gpuslide-debug.keystore
+            echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d -i > apk/gpuslide-debug.keystore
+            # Sanity-check: a real JKS/PKCS12 keystore is never this small.
+            # Catches silent corruption (e.g. an empty or garbled secret)
+            # before it causes a confusing failure deeper in the build.
+            size=$(stat -c%s apk/gpuslide-debug.keystore 2>/dev/null || stat -f%z apk/gpuslide-debug.keystore)
+            if [ "$size" -lt 500 ]; then
+              echo "::error::Decoded keystore is suspiciously small ($size bytes) -- SIGNING_KEYSTORE_B64 secret is likely corrupted. Re-copy it with: base64 -i apk/gpuslide-debug.keystore | pbcopy"
+              exit 1
+            fi
           else
             echo "No SIGNING_KEYSTORE_B64 secret set -- build.sh will generate a fresh one."
             echo "NOTE: without a persisted keystore, every CI build signs with a"
