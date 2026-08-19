@@ -1,0 +1,93 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      koreader_version:
+        description: 'KOReader version tag (e.g. v2026.07.1)'
+        required: true
+      arch:
+        description: 'Architecture'
+        required: true
+        default: 'arm64'
+        type: choice
+        options:
+          - arm64
+          - arm
+          - x86
+  push:
+    tags:
+      - 'build-*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends unzip zip p7zip-full python3
+          cd /tmp
+          sudo apt-get download apksigner zipalign libapksig-java \
+            android-libziparchive android-libutils android-libcutils \
+            android-libbase android-liblog android-libbacktrace libzopfli1
+          sudo dpkg -i --force-depends *.deb
+          which apksigner zipalign
+
+      - name: Install luajit (for syntax-checking patched files)
+        run: sudo apt-get install -y luajit
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.koreader_version }}" >> "$GITHUB_OUTPUT"
+            echo "arch=${{ github.event.inputs.arch }}" >> "$GITHUB_OUTPUT"
+          else
+            # push tag like "build-v2026.07.1-arm64"
+            raw="${GITHUB_REF#refs/tags/build-}"
+            echo "tag=${raw%-*}" >> "$GITHUB_OUTPUT"
+            echo "arch=${raw##*-}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore or generate signing keystore
+        run: |
+          if [ -n "${{ secrets.SIGNING_KEYSTORE_B64 }}" ]; then
+            echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d > apk/gpuslide-debug.keystore
+          else
+            echo "No SIGNING_KEYSTORE_B64 secret set -- build.sh will generate a fresh one."
+            echo "NOTE: without a persisted keystore, every CI build signs with a"
+            echo "different key, meaning installs won't upgrade in place between"
+            echo "CI-built releases either. Add the secret for consistent signing."
+          fi
+
+      - name: Build
+        run: |
+          cd apk
+          chmod +x build.sh
+          ./build.sh "${{ steps.version.outputs.tag }}" "${{ steps.version.outputs.arch }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: koreader-${{ steps.version.outputs.arch }}-gpuslide-${{ steps.version.outputs.tag }}
+          path: apk/koreader-*-gpuslide-*.apk
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/build-')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apk/koreader-*-gpuslide-*.apk
+          body: |
+            Built against KOReader ${{ steps.version.outputs.tag }} (${{ steps.version.outputs.arch }}).
+
+            **Signed with a throwaway key, not KOReader's official one.**
+            If you have KOReader installed already, uninstall it first
+            (`adb uninstall org.koreader.launcher`) -- Android won't
+            upgrade in place over a mismatched signature. Your library
+            and settings in `/sdcard/koreader/` are untouched by the
+            uninstall.
+
+            See KNOWN_ISSUES.md before relying on this.
