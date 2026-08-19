@@ -27,6 +27,15 @@ jobs:
 
       - name: Install build tools
         run: |
+          # The runner's default mirrorlist (/etc/apt/apt-mirrors.txt) puts a
+          # regional Azure mirror first, which has been consistently
+          # unreachable/slow -- apt retries it across every single source line
+          # (main/universe/restricted/multiverse x noble/updates/backports/security)
+          # before falling back, costing minutes even with retry limits set.
+          # Skip it entirely by pointing straight at the mirror that's actually
+          # been working (archive.ubuntu.com, confirmed via the Hit:/Get: lines
+          # in every run so far).
+          echo "http://archive.ubuntu.com/ubuntu" | sudo tee /etc/apt/apt-mirrors.txt
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10 update
           sudo apt-get install -y --no-install-recommends unzip zip p7zip-full python3
 
