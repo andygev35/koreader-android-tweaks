@@ -90,6 +90,16 @@ local ok, err = pcall(function()
         if PowerD then
             if entering.extra_dim_level and entering.extra_dim_level < 0 and _G.ExtraDim then
                 _G.ExtraDim.setLevel(entering.extra_dim_level)
+                -- ExtraDim.setLevel only updates the tracked level and the
+                -- software darken overlay -- it never touches the real
+                -- backlight. Without this, the physical brightness stays
+                -- wherever the mode we're leaving had it until the next
+                -- manual swipe happens to trigger turnOffFrontlight() for
+                -- real via 2-extra-dim.lua's gesture handler, which looks
+                -- like the dim level "snapping" to the right value later.
+                if PowerD:isFrontlightOn() then
+                    PowerD:turnOffFrontlight()
+                end
             elseif entering.intensity and entering.intensity > 0 then
                 PowerD:setIntensity(entering.intensity)
                 if _G.ExtraDim then _G.ExtraDim.setLevel(0) end
