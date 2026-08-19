@@ -1,4 +1,4 @@
--- @bundle_version 3
+-- @bundle_version 4
 --[[
     2-extra-dim.lua  (v2)
 
@@ -64,8 +64,8 @@ local ok, err = pcall(function()
     local EXTRA_DIM_MIN = tonumber(G_reader_settings:readSetting("extra_dim_min")) or -40
     local EXTRA_DIM_MAX_FACTOR = tonumber(G_reader_settings:readSetting("extra_dim_max_factor")) or 0.75
 
-    PowerD.extra_dim_level = PowerD.extra_dim_level or 0    -- 0 or negative; independent of fl_intensity
-    PowerD.extra_dim_factor = PowerD.extra_dim_factor or 0  -- 0..EXTRA_DIM_MAX_FACTOR, derived from the level
+    PowerD.extra_dim_level = tonumber(G_reader_settings:readSetting("android_extra_dim_level")) or 0
+    PowerD.extra_dim_factor = 0  -- recomputed below once updateExtraDimFactor is defined
 
     local function updateExtraDimFactor()
         local level = PowerD.extra_dim_level
@@ -78,6 +78,22 @@ local ok, err = pcall(function()
             PowerD.extra_dim_factor = factor
             UIManager:setDirty("all", "ui")
         end
+        -- Persist immediately rather than relying on KOReader's normal
+        -- clean-exit save hook, which a force-close/swiped-away app skips
+        -- entirely -- this is what was missing before, and why the level
+        -- reset to nothing across a real app restart.
+        G_reader_settings:saveSetting("android_extra_dim_level", PowerD.extra_dim_level)
+        G_reader_settings:flush()
+    end
+
+    -- Restore on load: if the last session ended in extra-dim territory,
+    -- apply it for real now (both the darken overlay and the actual
+    -- hardware call) instead of just restoring the number and leaving the
+    -- backlight at whatever KOReader's own native brightness setting is.
+    if PowerD.extra_dim_level < 0 then
+        PowerD:turnOffFrontlightHW()
+        PowerD.is_fl_on = false
+        updateExtraDimFactor()
     end
 
     -- Reimplementation of devicelistener.lua's local calculateGestureDelta

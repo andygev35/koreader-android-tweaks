@@ -1,4 +1,4 @@
--- @bundle_version 3
+-- @bundle_version 4
 --[[
     2-night-mode-links.lua
 
@@ -38,11 +38,22 @@ local ok, err = pcall(function()
     local PowerD = Device.powerd
 
     -- Per-mode saved state. nil fields mean "nothing saved yet for that
-    -- mode" -- the corresponding restore step is just skipped.
-    local saved = {
+    -- mode" -- the corresponding restore step is just skipped. Restored
+    -- from G_reader_settings on load and re-persisted (with an immediate
+    -- flush, not relying on KOReader's clean-exit save hook -- a
+    -- force-close/swiped-away app skips that) after every update, so this
+    -- survives a real app restart instead of resetting every launch.
+    local saved = G_reader_settings:readSetting("android_night_mode_saved_state") or {
         day = { intensity = nil, extra_dim_level = nil, color_scheme = nil },
         night = { intensity = nil, extra_dim_level = nil, color_scheme = nil },
     }
+    saved.day = saved.day or { intensity = nil, extra_dim_level = nil, color_scheme = nil }
+    saved.night = saved.night or { intensity = nil, extra_dim_level = nil, color_scheme = nil }
+
+    local function persistSaved()
+        G_reader_settings:saveSetting("android_night_mode_saved_state", saved)
+        G_reader_settings:flush()
+    end
 
     local function getStyleTweak()
         local req_ok, ReaderUI = pcall(require, "apps/reader/readerui")
@@ -125,6 +136,8 @@ local ok, err = pcall(function()
         if styletweak and entering.color_scheme then
             styletweak:onToggleStyleTweak({ entering.color_scheme, true }, nil, true)
         end
+
+        persistSaved()
     end
 end)
 
