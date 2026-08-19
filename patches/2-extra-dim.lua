@@ -1,3 +1,4 @@
+-- @bundle_version 3
 --[[
     2-extra-dim.lua  (v2)
 

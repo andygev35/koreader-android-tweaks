@@ -1,3 +1,4 @@
+-- @bundle_version 3
 --[[
     2-night-mode-links.lua
 
