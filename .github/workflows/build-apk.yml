@@ -29,12 +29,20 @@ jobs:
         run: |
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10 update
           sudo apt-get install -y --no-install-recommends unzip zip p7zip-full python3
-          cd /tmp
-          sudo apt-get download apksigner zipalign libapksig-java \
-            android-libziparchive android-libutils android-libcutils \
-            android-libbase android-liblog android-libbacktrace libzopfli1
-          sudo dpkg -i --force-depends *.deb
-          which apksigner zipalign
+
+      - name: Locate zipalign/apksigner from the runner's preinstalled Android SDK
+        run: |
+          # GitHub-hosted Ubuntu runners ship a full Android SDK at $ANDROID_HOME,
+          # including build-tools with zipalign/apksigner. Using that instead of
+          # apt-get avoids fetching Ubuntu's universe package index (where those
+          # packages live) -- a large, occasionally slow/flaky download on a
+          # fresh runner, and the actual bottleneck behind builds that appear to
+          # hang after the apt mirror noise clears.
+          BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+          echo "Using build-tools: $BUILD_TOOLS_DIR"
+          echo "$BUILD_TOOLS_DIR" >> "$GITHUB_PATH"
+          "${BUILD_TOOLS_DIR}zipalign" 2>&1 | head -1
+          "${BUILD_TOOLS_DIR}apksigner" --version
 
       - name: Install luajit (for syntax-checking patched files)
         run: sudo apt-get install -y luajit
