@@ -3,3 +3,4 @@ __pycache__/
 gpuslide-debug.keystore
 koreader-*-gpuslide-*.apk
 *.idsig
+.DS_Store
