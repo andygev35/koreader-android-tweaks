@@ -39,6 +39,9 @@ APK involved.
 **Install:** copy the files you want into `/sdcard/koreader/patches/`,
 restart KOReader.
 
+There's a fourth file in `patches/`, **`2-slide-animation-settings.lua`**,
+not listed above because it's Tier-2-only — see the next section.
+
 ### Tier 2 — the slide animation (`apk/`): requires a rebuilt APK
 
 The page-turn slide can't be a plain patch. KOReader's Android build
@@ -67,24 +70,29 @@ APK with a couple of files changed inside that archive.
   needs rebuilding after every KOReader release. `apk/build.sh` does the
   whole rebuild in one command against any version tag.
 
-The APK build also bundles the three Tier 1 patch files and self-installs
-them to `/sdcard/koreader/patches/` on first run if they're not already
-there. Each bundled file after that carries a `-- @bundle_version N`
-marker; a later rebuild upgrades an installed file in place if both the
-bundled and installed copies carry the marker and the bundled one's
-number is higher, so unedited installs pick up fixes automatically.
-Files without the marker on both sides (like your own hand-edited
-copies, or `2-color-schemes-css.lua`, deliberately never versioned) are
-only ever installed if missing — never touched again, so local edits
-are always safe. The one exception: a file installed before this
-versioning scheme existed at all (no marker on either side) gets
-upgraded exactly once, automatically, the first time a new-enough build
-runs — with the pre-upgrade copy saved alongside it as
-`<name>.pre-migration.bak` — so anyone who installed early doesn't get
-permanently stuck on their first version. So if you go the APK route,
-you get everything in one install, kept current on every rebuild; if
-you'd rather stay lower-risk, use Tier 1 patches alone on your existing
-install.
+The APK build also bundles four patch files and self-installs them to
+`/sdcard/koreader/patches/` on first run if they're not already there —
+the three Tier 1 patches above, plus **`2-slide-animation-settings.lua`**,
+which adds an in-app Settings entry (gear icon → Taps and gestures →
+Page-turn slide animation) for tuning `android_slide_steps` and
+`android_slide_duration_ms` without hand-editing `settings.reader.lua`; it
+checks `Device:canDoSwipeAnimation()` and no-ops on a Tier-1-only install,
+since those settings do nothing without this APK's slide feature present.
+Each bundled file after that carries a `-- @bundle_version N` marker; a
+later rebuild upgrades an installed file in place if both the bundled and
+installed copies carry the marker and the bundled one's number is higher,
+so unedited installs pick up fixes automatically. Files without the
+marker on both sides (like your own hand-edited copies, or
+`2-color-schemes-css.lua`, deliberately never versioned) are only ever
+installed if missing — never touched again, so local edits are always
+safe. The one exception: a file installed before this versioning scheme
+existed at all (no marker on either side) gets upgraded exactly once,
+automatically, the first time a new-enough build runs — with the
+pre-upgrade copy saved alongside it as `<name>.pre-migration.bak` — so
+anyone who installed early doesn't get permanently stuck on their first
+version. So if you go the APK route, you get everything in one install,
+kept current on every rebuild; if you'd rather stay lower-risk, use
+Tier 1 patches alone on your existing install.
 
 **Build:**
 
@@ -113,13 +121,20 @@ adb install apk/koreader-arm64-gpuslide-<version>.apk
 ```
 
 Then in a book: Settings (⚙) → Taps and gestures → Page turns → enable
-**Page turn animations**.
+**Page turn animations**. Steps/duration can be tuned right below that, in
+**Page-turn slide animation**, without touching any files.
 
 ## Tuning
 
-Runtime settings, no rebuild needed either way — set via
-`G_reader_settings` (e.g. from a Lua console plugin, or by editing
-`/sdcard/koreader/settings.reader.lua` directly while KOReader is closed):
+`android_slide_steps`/`android_slide_duration_ms` have an in-app UI: gear
+icon → Taps and gestures → Page-turn slide animation. Everything else
+below (and those two, if you'd rather script it) needs
+`G_reader_settings`, set directly (e.g. from a Lua console plugin, or by
+editing `/sdcard/koreader/settings.reader.lua` directly **while KOReader is
+closed** — editing it while the app is running doesn't work, since
+KOReader only reads that file once at startup and periodically flushes its
+own in-memory copy back over any on-disk edit; see the comment header in
+`patches/2-slide-animation-settings.lua` for the full mechanism):
 
 ```lua
 -- slide animation
