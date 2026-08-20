@@ -69,10 +69,22 @@ APK with a couple of files changed inside that archive.
 
 The APK build also bundles the three Tier 1 patch files and self-installs
 them to `/sdcard/koreader/patches/` on first run if they're not already
-there (idempotent — never overwrites a file that already exists, so any
-local edits you've made are safe). So if you go the APK route, you get
-everything in one install; if you'd rather stay lower-risk, use Tier 1
-patches alone on your existing install.
+there. Each bundled file after that carries a `-- @bundle_version N`
+marker; a later rebuild upgrades an installed file in place if both the
+bundled and installed copies carry the marker and the bundled one's
+number is higher, so unedited installs pick up fixes automatically.
+Files without the marker on both sides (like your own hand-edited
+copies, or `2-color-schemes-css.lua`, deliberately never versioned) are
+only ever installed if missing — never touched again, so local edits
+are always safe. The one exception: a file installed before this
+versioning scheme existed at all (no marker on either side) gets
+upgraded exactly once, automatically, the first time a new-enough build
+runs — with the pre-upgrade copy saved alongside it as
+`<name>.pre-migration.bak` — so anyone who installed early doesn't get
+permanently stuck on their first version. So if you go the APK route,
+you get everything in one install, kept current on every rebuild; if
+you'd rather stay lower-risk, use Tier 1 patches alone on your existing
+install.
 
 **Build:**
 

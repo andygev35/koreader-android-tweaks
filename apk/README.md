@@ -33,8 +33,17 @@ Requires `unzip`, `zip`, `p7zip-full`, `zipalign`, `apksigner`, `python3`,
 - `android_gpu_slide.lua` — the slide animation itself, dropped into
   `frontend/` inside the repacked archive.
 - `bundled_patches/` — copies of the `patches/` files, baked in for
-  self-install on first run (idempotent, never overwrites an existing
-  file at the destination).
+  self-install on first run. A file already installed is only upgraded
+  in place if both the bundled and installed copies carry a matching
+  `-- @bundle_version N` marker and the bundled one's number is higher;
+  otherwise (missing entirely, or unversioned by design like
+  `2-color-schemes-css.lua`) it's installed only if missing and never
+  touched again, so hand edits are safe. The one exception: an installed
+  `2-extra-dim.lua` or `2-night-mode-links.lua` with no marker at all
+  (i.e. from before this versioning scheme existed) is force-upgraded
+  once, automatically, with the replaced file backed up alongside it as
+  `<name>.pre-migration.bak` — see `apply_bootstrap_patch.py` for the
+  one-time migration logic and its `LEGACY_MIGRATE_FILES` list.
 
 First build generates `gpuslide-debug.keystore` next to `build.sh` — keep
 it and reuse it on future rebuilds, or you'll need to uninstall/reinstall
