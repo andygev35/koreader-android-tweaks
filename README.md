@@ -2,8 +2,7 @@
 
 Small tweaks for [KOReader](https://github.com/koreader/koreader) on
 non-eink Android (phones, tablets, foldables): a GPU-composited page-turn
-slide animation, brightness that goes below the hardware floor, and a
-couple of quality-of-life hooks around night mode.
+slide animation, and brightness that goes below the hardware floor.
 
 Built and tested against a Galaxy Z Fold 7 running KOReader v2026.07.1.
 **This is early and has one real device's worth of testing** — see
@@ -16,7 +15,7 @@ This repo has two independent things in it. You don't need both.
 
 ### Tier 1 — patches (`patches/`): drop-in, no rebuild, no risk
 
-Three plain `.lua` files that go in `/sdcard/koreader/patches/` on any
+One plain `.lua` file that goes in `/sdcard/koreader/patches/` on any
 existing KOReader Android install. No uninstall, no signature issues, no
 APK involved.
 
@@ -25,21 +24,11 @@ APK involved.
   Android overlay surface (see the comment header in the file for why
   that distinction matters — a KOReader maintainer tried the overlay
   approach years ago and hit real bugs; this avoids that failure class).
-- **`2-night-mode-links.lua`** — remembers brightness/dim level
-  separately for day vs. night mode, and (if you're also using the color
-  schemes patch below) reverts any active color scheme to default when
-  entering night mode and restores it on the way back out.
-- **`2-color-schemes-css.lua`** — a set of named background/text color
-  presets (Sepia, Grey, Blue, etc.) as a Style Tweaks submenu. Not
-  strictly part of this project's own work — included because
-  `2-night-mode-links.lua` is written against its `color_scheme_*`
-  tweak-id convention and the two are meant to be used together, but
-  it's a standalone, generically useful patch on its own.
 
-**Install:** copy the files you want into `/sdcard/koreader/patches/`,
-restart KOReader.
+**Install:** copy the file into `/sdcard/koreader/patches/`, restart
+KOReader.
 
-There's a fourth file in `patches/`, **`2-slide-animation-settings.lua`**,
+There's a second file in `patches/`, **`2-slide-animation-settings.lua`**,
 not listed above because it's Tier-2-only — see the next section.
 
 ### Tier 2 — the slide animation (`apk/`): requires a rebuilt APK
@@ -70,20 +59,19 @@ APK with a couple of files changed inside that archive.
   needs rebuilding after every KOReader release. `apk/build.sh` does the
   whole rebuild in one command against any version tag.
 
-The APK build also bundles four patch files and self-installs them to
+The APK build also bundles two patch files and self-installs them to
 `/sdcard/koreader/patches/` on first run if they're not already there —
-the three Tier 1 patches above, plus **`2-slide-animation-settings.lua`**,
-which adds an in-app Settings entry (gear icon → Taps and gestures →
+the Tier 1 patch above, plus **`2-slide-animation-settings.lua`**, which
+adds an in-app Settings entry (gear icon → Taps and gestures →
 Page-turn slide animation) for tuning `android_slide_steps` and
 `android_slide_duration_ms` without hand-editing `settings.reader.lua`; it
 checks `Device:canDoSwipeAnimation()` and no-ops on a Tier-1-only install,
 since those settings do nothing without this APK's slide feature present.
-Each bundled file after that carries a `-- @bundle_version N` marker; a
-later rebuild upgrades an installed file in place if both the bundled and
+Each bundled file carries a `-- @bundle_version N` marker; a later
+rebuild upgrades an installed file in place if both the bundled and
 installed copies carry the marker and the bundled one's number is higher,
 so unedited installs pick up fixes automatically. Files without the
-marker on both sides (like your own hand-edited copies, or
-`2-color-schemes-css.lua`, deliberately never versioned) are only ever
+marker on both sides (e.g. your own hand-edited copies) are only ever
 installed if missing — never touched again, so local edits are always
 safe. The one exception: a file installed before this versioning scheme
 existed at all (no marker on either side) gets upgraded exactly once,
@@ -92,7 +80,7 @@ pre-upgrade copy saved alongside it as `<name>.pre-migration.bak` — so
 anyone who installed early doesn't get permanently stuck on their first
 version. So if you go the APK route, you get everything in one install,
 kept current on every rebuild; if you'd rather stay lower-risk, use
-Tier 1 patches alone on your existing install.
+the Tier 1 patch alone on your existing install.
 
 **Build:**
 
@@ -150,20 +138,16 @@ G_reader_settings:saveSetting("extra_dim_max_factor", 0.75)
 
 Each file has a comment header explaining the specific problem it solves
 and, where relevant, why the obvious-looking simpler approach doesn't
-work (e.g. why the slide animation can't be a plain patch, why night mode
-needed a second attempt at the darken blend, why an early attempt at the
-night-mode hook silently never ran at all). If you're trying to
-understand or extend this, start there rather than re-deriving it.
+work (e.g. why the slide animation can't be a plain patch, why extra-dim
+needed a second attempt at the darken blend under night mode). If you're
+trying to understand or extend this, start there rather than re-deriving
+it.
 
 ## License
 
 AGPL-3.0, matching KOReader's own license, since `apk/` ships a modified
 derivative of KOReader source (`uimanager.lua`, `reader.lua`) alongside
 new files. See [LICENSE](LICENSE).
-
-`patches/2-color-schemes-css.lua` is included as originally written by
-its author (comment header preserved); everything else in this repo is
-new.
 
 ## Contributing / issues
 

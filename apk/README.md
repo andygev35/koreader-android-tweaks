@@ -1,7 +1,7 @@
 # Tier 2 — the slide-animation APK build
 
 Builds a repackaged KOReader Android APK with a GPU-composited page-turn
-slide animation, plus self-installs the three `patches/` files to
+slide animation, plus self-installs the `patches/` files to
 `/sdcard/koreader/patches/` on first run.
 
 Read the root [`README.md`](../README.md) first — this requires
@@ -36,12 +36,11 @@ Requires `unzip`, `zip`, `p7zip-full`, `zipalign`, `apksigner`, `python3`,
   self-install on first run. A file already installed is only upgraded
   in place if both the bundled and installed copies carry a matching
   `-- @bundle_version N` marker and the bundled one's number is higher;
-  otherwise (missing entirely, or unversioned by design like
-  `2-color-schemes-css.lua`) it's installed only if missing and never
-  touched again, so hand edits are safe. The one exception: an installed
-  `2-extra-dim.lua` or `2-night-mode-links.lua` with no marker at all
-  (i.e. from before this versioning scheme existed) is force-upgraded
-  once, automatically, with the replaced file backed up alongside it as
+  otherwise (missing entirely, or hand-edited) it's installed only if
+  missing and never touched again, so hand edits are safe. The one
+  exception: an installed `2-extra-dim.lua` with no marker at all (i.e.
+  from before this versioning scheme existed) is force-upgraded once,
+  automatically, with the replaced file backed up alongside it as
   `<name>.pre-migration.bak` — see `apply_bootstrap_patch.py` for the
   one-time migration logic and its `LEGACY_MIGRATE_FILES` list.
 

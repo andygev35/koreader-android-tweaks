@@ -7,9 +7,8 @@ It's written for whichever Claude picks this up next.
 
 A set of KOReader tweaks for non-eink Android (built and tested against a
 Galaxy Z Fold 7, KOReader v2026.07.1): a GPU-composited page-turn slide
-animation, brightness that extends below the hardware floor ("extra dim"),
-and hooks that link brightness/color-scheme state to the day/night mode
-toggle. Repo: `github.com/andygev35/koreader-android-tweaks`.
+animation, and brightness that extends below the hardware floor ("extra
+dim"). Repo: `github.com/andygev35/koreader-android-tweaks`.
 
 The person (Andy) is technically deep — comfortable with ADB, Lua, git,
 GitHub Actions, APK signing, reading source to verify claims rather than
@@ -26,11 +25,6 @@ harness and run it before calling something fixed.
 ```
 patches/                    Tier 1: drop-in .lua files, no rebuild needed
   2-extra-dim.lua             brightness below 0, software darken blend
-  2-night-mode-links.lua      day/night brightness + color-scheme memory
-  2-color-schemes-css.lua     Andy's own file (Sepia/Grey/Blue presets) --
-                               not authored by this project, included
-                               because night-mode-links depends on its
-                               color_scheme_* tweak-id convention
   2-slide-animation-settings.lua  in-app Settings UI for the slide steps/
                                duration (Tier-2-only, no-ops without it --
                                see the dedicated section below)
@@ -39,7 +33,7 @@ apk/                         Tier 2: requires a rebuilt, self-signed APK
   apply_patch.py              inserts slide-animation hook into uimanager.lua
   apply_bootstrap_patch.py    inserts self-install hook into reader.lua
   android_gpu_slide.lua       the slide animation itself
-  bundled_patches/             copies of patches/*.lua (all four), self-
+  bundled_patches/             copies of patches/*.lua (both files), self-
                                installed on first APK run (version-aware,
                                see below)
 .github/workflows/build-apk.yml   CI: builds + attaches to GitHub Release
@@ -49,9 +43,25 @@ README.md                    two-tier explanation, install/build steps
 ```
 
 **Critical invariant**: `patches/*.lua` and `apk/bundled_patches/*.lua`
-must always be kept identical (same 4 files, byte-for-byte) except that
-`2-color-schemes-css.lua` has no version marker by design. Every time you
-edit a patch file, update both locations.
+must always be kept identical (same 2 files, byte-for-byte). Every time
+you edit a patch file, update both locations.
+
+**Removed (this session)**: `2-night-mode-links.lua` and
+`2-color-schemes-css.lua` were deleted from the repo entirely -- from
+both `patches/` and `apk/bundled_patches/` -- at Andy's request. The
+trigger: Andy deleted `2-color-schemes-css.lua` from
+`/sdcard/koreader/patches/` on-device to remove the Color Schemes
+submenu, but the self-install logic in `reader.lua` re-copies any
+missing bundled file on every startup (it checks `dest_exists`, not a
+first-run flag), so the file kept reappearing. There's no supported way
+to make the self-install logic respect a deliberate on-device deletion
+without adding new logic for it, so the fix taken was to stop bundling
+(and stop shipping) the file rather than build that. `2-night-mode-links.lua`
+was removed alongside it since it was written specifically against
+`2-color-schemes-css.lua`'s `color_scheme_*` tweak-id convention and has
+no independent purpose without it. `apk/apply_bootstrap_patch.py`'s
+`LEGACY_MIGRATE_FILES` table was trimmed to just `2-extra-dim.lua`
+accordingly -- see the bundled-patch versioning section below.
 
 ## Architecture facts (verified against real source, not memory)
 
@@ -140,7 +150,7 @@ worth knowing before touching KOReader's menu system again:
   literally "on startup" -- confirmed directly from the on-device Patch
   Management screen, which buckets patches into "On startup, only after
   update" / "On startup" / "After setup" / "Before exit" / "On exit", and
-  all four `2-*.lua` patches in this repo show up under "After setup".
+  both `2-*.lua` patches in this repo show up under "After setup".
   Timing-wise this is still early enough to safely `require()` and hook
   things like `apps/reader/modules/readermenu` (proven working here), but
   worth knowing the real terminology if debugging patch-load-order issues
@@ -161,14 +171,13 @@ in its first 512 bytes. The self-install logic in `reader.lua` (injected
 by `apply_bootstrap_patch.py`) only overwrites an already-installed file
 if **both** the bundled and installed copies carry the marker and the
 bundled one's number is higher. No marker on either side = install-if-
-missing only, never touched again -- this is what protects
-`2-color-schemes-css.lua` (deliberately unmarked) from being clobbered if
-Andy ever hand-edits it.
+missing only, never touched again -- this is what protects any hand-edited
+copy of a bundled file from being clobbered.
 
-**When fixing a bug in `2-extra-dim.lua` or `2-night-mode-links.lua`:
-bump `@bundle_version` by 1.** Otherwise the fix won't propagate through
-the APK's self-install on the next rebuild, and Andy has to manually
-`adb push` it again (this happened once already).
+**When fixing a bug in `2-extra-dim.lua`: bump `@bundle_version` by 1.**
+Otherwise the fix won't propagate through the APK's self-install on the
+next rebuild, and Andy has to manually `adb push` it again (this happened
+once already).
 
 **Known limitation**: files installed before this versioning scheme
 existed have no marker, so they'll never auto-upgrade even after this
@@ -183,23 +192,28 @@ Check `KNOWN_ISSUES.md` in the repo for the full list, but as of this
 context being written, recently fixed and verified:
 - Night-mode brightness restore triggering the real hardware call
   (fixed, verified via simulated Lua round-trip and confirmed by Andy
-  on-device)
+  on-device -- this fix lived in `2-night-mode-links.lua`, since removed
+  from the repo; kept here as a historical record of the `is_fl_on`
+  staleness lesson, which is still documented under "Architecture facts"
+  above since it's a general KOReader gotcha, not specific to that file)
 
 **Currently broken, needs investigation:**
-- Extra-dim level and day/night memory not persisting across a full app
-  restart. A fix was written (G_reader_settings:saveSetting() +
-  :flush() calls, added to both patches/2-extra-dim.lua and
-  patches/2-night-mode-links.lua, bundle_version bumped to 4) and
-  verified via a simulated Lua round-trip harness (set value -> simulate
-  restart -> confirm it comes back) -- but **Andy confirmed on-device
-  that it did not actually fix the problem.** The simulation passing
-  but the real behavior still failing means either: the simulation
-  didn't capture something true about the real environment (e.g.
-  G_reader_settings behaves differently than the stub, the flush timing
-  doesn't survive however Android actually kills the process, patch
-  load order interacts with this differently than assumed), or the fix
-  never actually made it onto the device correctly (worth first
-  confirming the patch files on-device actually contain the
+- Extra-dim level not persisting across a full app restart. (This bug
+  report originally also covered day/night memory persistence in
+  `2-night-mode-links.lua`, since removed from the project -- see
+  "Removed (this session)" above -- so only the `2-extra-dim.lua` half
+  is still relevant.) A fix was written (G_reader_settings:saveSetting()
+  + :flush() calls, added to patches/2-extra-dim.lua, bundle_version
+  bumped to 4) and verified via a simulated Lua round-trip harness (set
+  value -> simulate restart -> confirm it comes back) -- but **Andy
+  confirmed on-device that it did not actually fix the problem.** The
+  simulation passing but the real behavior still failing means either:
+  the simulation didn't capture something true about the real
+  environment (e.g. G_reader_settings behaves differently than the
+  stub, the flush timing doesn't survive however Android actually kills
+  the process, patch load order interacts with this differently than
+  assumed), or the fix never actually made it onto the device correctly
+  (worth first confirming the patch file on-device actually contains the
   @bundle_version 4 / flush() code before re-deriving anything -- this
   session already hit two separate cases of "the fix didn't reach the
   device" that turned out to be file-placement/self-install issues

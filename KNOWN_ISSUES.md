@@ -55,23 +55,6 @@ except where noted otherwise.
   invert implementation, and confirmed working via direct user testing —
   this one item is actually verified, unlike most of this list.
 
-## `patches/2-night-mode-links.lua`
-
-- **First-ever toggle in a given direction has nothing saved yet** and
-  just leaves the current level/scheme alone. From the second toggle in
-  that direction onward, both day and night state are remembered
-  properly.
-- **The color-scheme-revert logic is generic** (matches any tweak id
-  under `^color_scheme_`) but has only been exercised against the eight
-  presets in `2-color-schemes-css.lua`. Should work with any other patch
-  using the same id convention, untested against anything else.
-- **A prior version of this file was named with a `3-` prefix** and
-  silently never ran at all — KOReader's patch loader
-  (`frontend/userpatch.lua`) only recognizes priority prefixes 0, 1, 2,
-  8, 9; "3-7 are reserved for later use" per its own source comment. If
-  you're inspecting old copies of this project, that's why an earlier
-  version appeared to do nothing.
-
 ## General
 
 - All of the above was built by reading KOReader's actual source (fetched
